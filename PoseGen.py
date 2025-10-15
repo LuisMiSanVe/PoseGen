@@ -88,81 +88,83 @@ def render_loop():
     global last_time
     global stopsim
     global CAMERA_SCALE
-    while not stopsim:
-        start = time.time()
+    while True:
+        if not stopsim:
+            start = time.time()
 
-        sidemargin = 0
-        if root.winfo_height() > 1:
-            sidemargin = 4
+            sidemargin = 0
+            if root.winfo_height() > 1:
+                sidemargin = 4
 
-        # Camera parameters
-        view_matrix = p.computeViewMatrixFromYawPitchRoll(
-            cameraTargetPosition=start_pos, # Match ground separation to keep camera centered on humanoid
-            distance=zoom,
-            yaw=h_angle,
-            pitch=v_angle,
-            roll=0,
-            upAxisIndex=2
-        )
+            # Camera parameters
+            view_matrix = p.computeViewMatrixFromYawPitchRoll(
+                cameraTargetPosition=start_pos, # Match ground separation to keep camera centered on humanoid
+                distance=zoom,
+                yaw=h_angle,
+                pitch=v_angle,
+                roll=0,
+                upAxisIndex=2
+            )
 
-        camera_width = int((root.winfo_width()/1.5) * CAMERA_SCALE)
-        camera_height = int((root.winfo_height()-sidemargin) * CAMERA_SCALE)
+            camera_width = int((root.winfo_width()/1.5) * CAMERA_SCALE)
+            camera_height = int((root.winfo_height()-sidemargin) * CAMERA_SCALE)
 
-        # Convert Camera to Image
-        width, height, rgb, depth, seg = p.getCameraImage(
-            camera_width, camera_height,
-            viewMatrix=view_matrix,
-            projectionMatrix=p.computeProjectionMatrixFOV(fov=60, aspect=camera_width/camera_height, nearVal=0.1, farVal=10),
-            renderer=p.ER_TINY_RENDERER
-        )
-        # Get RGB value
-        rgb_array = np.array(rgb, dtype=np.uint8).reshape((height, width, 4))[:, :, :3]
-        # Render Image
-        vw = int(root.winfo_width() / 1.5)
-        vh = root.winfo_height() - sidemargin
-        img = Image.fromarray(rgb_array).convert("RGBA")
-        img = img.resize((vw, vh), Image.LANCZOS)
+            # Convert Camera to Image
+            width, height, rgb, depth, seg = p.getCameraImage(
+                camera_width, camera_height,
+                viewMatrix=view_matrix,
+                projectionMatrix=p.computeProjectionMatrixFOV(fov=60, aspect=camera_width/camera_height, nearVal=0.1, farVal=10),
+                renderer=p.ER_TINY_RENDERER
+            )
+            # Get RGB value
+            rgb_array = np.array(rgb, dtype=np.uint8).reshape((height, width, 4))[:, :, :3]
+            # Render Image
+            vw = int(root.winfo_width() / 1.5)
+            vh = root.winfo_height() - sidemargin
+            img = Image.fromarray(rgb_array).convert("RGBA")
+            img = img.resize((vw, vh), Image.LANCZOS)
 
-        if show_ref_image.get() and (ref_image is not None and ref_image is not ''):
-            # Reference image render as semitransparent
-            overlay = Image.open(ref_image).convert("RGBA")
-            opacity = 128  # 50% transparent
-            alpha = overlay.split()[3]
-            alpha = alpha.point(lambda p: p * (opacity / 255))
-            overlay.putalpha(alpha)
-            # Recalculate size to fit inside video stream
-            vw_ref, vh_ref = img.size
-            ow, oh = overlay.size
-            scale = min(vw_ref / ow, vh_ref / oh, 1.0)
-            new_size = (int(ow * scale), int(oh * scale))
-            overlay = overlay.resize(new_size, Image.LANCZOS)
-            x = (vw_ref - new_size[0]) // 2
-            y = (vh_ref - new_size[1]) // 2
+            if show_ref_image.get() and (ref_image is not None and ref_image is not ''):
+                # Reference image render as semitransparent
+                overlay = Image.open(ref_image).convert("RGBA")
+                opacity = 128  # 50% transparent
+                alpha = overlay.split()[3]
+                alpha = alpha.point(lambda p: p * (opacity / 255))
+                overlay.putalpha(alpha)
+                # Recalculate size to fit inside video stream
+                vw_ref, vh_ref = img.size
+                ow, oh = overlay.size
+                scale = min(vw_ref / ow, vh_ref / oh, 1.0)
+                new_size = (int(ow * scale), int(oh * scale))
+                overlay = overlay.resize(new_size, Image.LANCZOS)
+                x = (vw_ref - new_size[0]) // 2
+                y = (vh_ref - new_size[1]) // 2
 
-            # Put reference image as overlay
-            img.paste(overlay, (x, y), overlay)
+                # Put reference image as overlay
+                img.paste(overlay, (x, y), overlay)
 
-        # Put latest frame into queue
-        if not frame_queue.full():
-            frame_queue.put(img)
-        
-        # Show current FPS on terminal for debugging
-        '''
-        now = time.time()
-        actual_frame_time = now - last_time
-        last_time = now
-        print(f"FPS: {1 / actual_frame_time:.1f}")
-        '''
-        
-        # Cap to the target FPS
-        elapsed = time.time() - start
-        delay = max(0, (1.0 / fps_var.get()) - elapsed)
-        time.sleep(delay)
+            # Put latest frame into queue
+            if not frame_queue.full():
+                frame_queue.put(img)
+            
+            # Show current FPS on terminal for debugging
+            '''
+            now = time.time()
+            actual_frame_time = now - last_time
+            last_time = now
+            print(f"FPS: {1 / actual_frame_time:.1f}")
+            '''
+            
+            # Cap to the target FPS
+            elapsed = time.time() - start
+            delay = max(0, (1.0 / fps_var.get()) - elapsed)
+            time.sleep(delay)
+        else:
+            time.sleep(0.01)
 
 # GUI update
 def update_frame():
-    if not stopsim:
-        p.stepSimulation()
+    p.stepSimulation()
 
     # Check if there is a new frame
     try:
@@ -215,7 +217,7 @@ def custom_pose():
     global control_frame
     global custom_frame
     control_frame.pack_forget()
-    custom_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH)
+    custom_frame.pack(side=tk.RIGHT, fill=tk.BOTH)
 def reset_humanoid():
     p.resetSimulation()
     p.loadURDF("plane.urdf")
@@ -433,6 +435,7 @@ def gen_ai():
             else:
                 print(f"Unknown joint index {joint}")
     else:
+        ref_image = None
         raise ValueError("No image selected")
 
 def gen_ai_async():
@@ -594,7 +597,7 @@ tk.Button(control_frame, text="Generate Pose", command=gen_pose).pack(pady=10, a
 tk.Button(control_frame, text="Customize Pose", command=custom_pose).pack(pady=10, anchor="w")
 
 # Right: Custom frame
-custom_frame = tk.LabelFrame(main_frame, text="Customize Pose")
+custom_frame = tk.LabelFrame(main_frame, text="Customize Pose", padx=10, pady=10)
 scroll_frame = VerticalScrolledFrame(custom_frame)
 scroll_frame.pack(padx=10, fill=tk.BOTH, anchor="w")
 # 2  neck
@@ -773,7 +776,7 @@ button_frame = tk.Frame(custom_frame)
 button_frame.pack(pady=(15, 5), anchor="w")
 # Reference Image Buttons
 ref_frame = tk.Frame(button_frame)
-ref_frame.pack(padx=5)
+ref_frame.pack(padx=5, anchor = "w")
 tk.Button(ref_frame, text="Set reference Image", command=set_image).pack(side=tk.LEFT)
 tk.Label(ref_frame, text="Show").pack(side=tk.LEFT)
 show_ref_image = tk.BooleanVar(value=False)
@@ -781,7 +784,7 @@ tk.Checkbutton(ref_frame, variable=show_ref_image).pack(side=tk.RIGHT)
 # Generate with AI button
 tk.Button(button_frame, text="Generate with AI", command=gen_ai_async).pack(pady=10, padx=5, anchor="w")
 ai_label = tk.Label(button_frame, text="AI can be mistaken")
-ai_label.pack(pady=10, padx=5, anchor="w")
+ai_label.pack(padx=5, anchor="w")
 # Go back to Controls
 tk.Button(button_frame, text="Back", command=back_control).pack(pady=10, anchor="w")
 
