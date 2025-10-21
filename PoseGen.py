@@ -522,10 +522,8 @@ def save_pose():
     # Save in a file
     folder_path = current_folder + "/saves"
     if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-        count = 1
-    else:
-        count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])
+        os.makedirs(folder_path)    
+    count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])
 
     with open(current_folder + "/saves/pose" + str(count+1) + ".psgn", "w") as file:
         file.write(json.dumps(joint_states, indent=2))
