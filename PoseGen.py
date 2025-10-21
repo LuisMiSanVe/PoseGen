@@ -11,6 +11,8 @@ import time
 import threading
 import queue
 import json
+import subprocess
+import re
 
 #Classes
 class ToolTip:
@@ -219,17 +221,6 @@ def custom_pose():
     control_frame.pack_forget()
     custom_frame.pack(side=tk.RIGHT, fill=tk.BOTH)
 def reset_humanoid():
-    p.resetSimulation()
-    p.loadURDF("plane.urdf")
-    global humanoid
-    humanoid = p.loadURDF(current_folder + "/models/humanoid.urdf", start_pos, upright_orientation, useFixedBase=False)
-def reset_camera():
-    # Restore camera parameters
-    global zoom, h_angle, v_angle
-    zoom = 7
-    h_angle = 90
-    v_angle = 0
-def back_control():
     global control_frame
     global custom_frame
     global neck_x
@@ -257,10 +248,11 @@ def back_control():
     global left_ankle_x
     global left_ankle_y
     global left_ankle_z
-
-    custom_frame.pack_forget()
-    control_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH)
-
+    global humanoid
+    # Reset model and custom pose
+    p.resetSimulation()
+    p.loadURDF("plane.urdf")
+    humanoid = p.loadURDF(current_folder + "/models/humanoid.urdf", start_pos, upright_orientation, useFixedBase=False)
     neck_x.set(0)
     neck_y.set(0)
     neck_z.set(0)
@@ -286,6 +278,16 @@ def back_control():
     left_ankle_x.set(0)
     left_ankle_y.set(0)
     left_ankle_z.set(0)
+
+def reset_camera():
+    # Restore camera parameters
+    global zoom, h_angle, v_angle
+    zoom = 7
+    h_angle = 90
+    v_angle = 0
+def back_control():
+    custom_frame.pack_forget()
+    control_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.BOTH)
 
 def update_neck(_):
     global neck_x
@@ -359,8 +361,9 @@ def set_image():
         show_ref_image.set(True)
 def gen_ai():
     global ref_image
+    global current_folder
 
-    if ref_image is None:
+    if ref_image is None or ref_image is '':
         set_image()
     if ref_image is not None and ref_image is not '':
         reset_humanoid()
@@ -386,57 +389,67 @@ def gen_ai():
         
         img = Image.open(ref_image)
 
-        client = genai.Client(api_key="YOUR_API_KEY")
-        contents = [
-            img,
-            prompt
-        ]
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", 
-            contents=contents
-        )
 
-        # Remove style elements
-        json_data = response.text.replace("\n", "").replace("```", "").replace("json", "")
+        with open(current_folder + "/config/apikey.env", "r") as file:
+            env = file.read()
 
-        # Parse to JSON
-        if isinstance(json_data, str):
-            data = json.loads(json_data)
+        if bool(re.match("^AIza[0-9A-Za-z\-_]{35}$", env)):
+            client = genai.Client(api_key=env)
+            contents = [
+                img,
+                prompt
+            ]
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", 
+                contents=contents
+            )
+
+            # Remove style elements
+            json_data = response.text.replace("\n", "").replace("```", "").replace("json", "")
+
+            # Parse to JSON
+            jsonToPose(json_data)
         else:
-            data = json_data
-
-        # Search joints
-        for joint_str, value in data.items():
-            joint = int(joint_str)
-            # Hinge joint
-            if joint in [4, 7, 10, 13]:
-                if isinstance(value, (list, tuple)):
-                    print(f"Invalid hinge data for joint {joint}: {value}")
-                    value = value[0]  # In case it's mistakenly generated with 3-DOFs instead of 1
-                p.setJointMotorControl2(
-                    bodyUniqueId=humanoid,
-                    jointIndex=joint,
-                    controlMode=p.POSITION_CONTROL,
-                    targetPosition=value
-                )
-            # Multi-DOF joint
-            elif joint in [2, 3, 6, 9, 11, 12, 14]:
-                if not isinstance(value, (list, tuple)) or len(value) != 3:
-                    print(f"Invalid 3-DOF data for joint {joint}: {value}")
-                    continue
-                quat = p.getQuaternionFromEuler(value)
-                p.setJointMotorControlMultiDof(
-                    bodyUniqueId=humanoid,
-                    jointIndex=joint,
-                    controlMode=p.POSITION_CONTROL,
-                    targetPosition=quat
-                )
-
-            else:
-                print(f"Unknown joint index {joint}")
+            set_apikey()
+            raise ValueError("No valid API Key found")
     else:
         ref_image = None
         raise ValueError("No image selected")
+
+def jsonToPose(json_data):
+    if isinstance(json_data, str):
+        data = json.loads(json_data)
+    else:
+        data = json_data
+
+    # Search joints
+    for joint_str, value in data.items():
+        joint = int(joint_str)
+        # Hinge joint
+        if joint in [4, 7, 10, 13]:
+            if isinstance(value, (list, tuple)):
+                print(f"Invalid hinge data for joint {joint}: {value}")
+                value = value[0]  # In case it's mistakenly generated with 3-DOFs instead of 1
+            p.setJointMotorControl2(
+                bodyUniqueId=humanoid,
+                jointIndex=joint,
+                controlMode=p.POSITION_CONTROL,
+                targetPosition=value
+            )
+        # Multi-DOF joint
+        elif joint in [2, 3, 6, 9, 11, 12, 14]:
+            if not isinstance(value, (list, tuple)) or len(value) != 3:
+                print(f"Invalid 3-DOF data for joint {joint}: {value}")
+                continue
+            quat = p.getQuaternionFromEuler(value)
+            p.setJointMotorControlMultiDof(
+                bodyUniqueId=humanoid,
+                jointIndex=joint,
+                controlMode=p.POSITION_CONTROL,
+                targetPosition=quat
+            )
+        else:
+            print(f"Unknown joint index {joint}")
 
 def gen_ai_async():
     global ai_label
@@ -471,6 +484,68 @@ def stop_sim():
 def update_scale(new_scale):
     global CAMERA_SCALE
     CAMERA_SCALE = float(new_scale)
+
+def save_pose():
+    global humanoid
+    global current_folder
+
+    joint_map = {
+        2: "neck",
+        3: "right_shoulder",
+        4: "right_elbow",
+        6: "left_shoulder",
+        7: "left_elbow",
+        9: "right_hip",
+        10: "right_knee",
+        11: "right_ankle",
+        12: "left_hip",
+        13: "left_knee",
+        14: "left_ankle",
+    }
+    joint_states = {}
+    for joint_id in joint_map.keys():
+        joint_info = p.getJointInfo(humanoid, joint_id)
+        joint_type = joint_info[2]
+        # 3-DOF
+        if joint_type == p.JOINT_SPHERICAL or joint_type == p.JOINT_PLANAR:
+            state = p.getJointStateMultiDof(humanoid, joint_id)
+            pos = state[0]
+            # Convert quaternion to Euler [yaw, pitch, roll]
+            euler = p.getEulerFromQuaternion(pos)
+            joint_states[str(joint_id)] = [round(v, 3) for v in euler]
+        # 1-DOF
+        elif joint_type == p.JOINT_REVOLUTE or joint_type == p.JOINT_PRISMATIC:
+            state = p.getJointState(humanoid, joint_id)
+            pos = state[0]
+            joint_states[str(joint_id)] = round(pos, 3)
+
+    # Save in a file
+    folder_path = current_folder + "/saves"
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+        count = 1
+    else:
+        count = len([f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))])
+
+    with open(current_folder + "/saves/pose" + str(count+1) + ".psgn", "w") as file:
+        file.write(json.dumps(joint_states, indent=2))
+
+def load_pose():
+    pose_file = filedialog.askopenfilename(
+        title="Select a PoseGen save file",
+        filetypes=[("PoseGen Files", "*.psgn")]
+    )
+    if pose_file is not None and pose_file is not '':
+        with open(pose_file, "r") as file:
+            pose = file.read()
+            if pose is not None and pose is not '':
+                jsonToPose(pose)
+
+def set_apikey():
+    global current_folder
+    file_path = current_folder + "/config/apikey.env"
+    # Open the file in Notepad
+    subprocess.run(["notepad.exe", file_path])
 
 # Events
 def on_ctrl_mousewheel(event):
@@ -538,6 +613,25 @@ try:
     ctypes.windll.user32.SetWindowLongW(hwnd, -16, style)
 except Exception as e:
     pass  # Ignore if not on Windows or error occurs
+# Bar menu
+menubar = tk.Menu(root)
+file_menu = tk.Menu(menubar, tearoff=0)
+file_menu.add_command(label="Save pose", command=save_pose)
+file_menu.add_command(label="Load pose", command=load_pose)
+menubar.add_cascade(label="File", menu=file_menu)
+edit_menu = tk.Menu(menubar, tearoff=0)
+edit_menu.add_command(label="Start/Stop simulation", command=stop_sim)
+edit_menu.add_command(label="Show/Hide 3D display", command=display)
+edit_menu.add_separator()
+edit_menu.add_command(label="Reset Pose", command=reset_humanoid)
+edit_menu.add_command(label="Reset Camera", command=reset_camera)
+menubar.add_cascade(label="Edit", menu=edit_menu)
+config_menu = tk.Menu(menubar, tearoff=0)
+config_menu.add_command(label="Set Gemini API Key", command=set_apikey)
+menubar.add_cascade(label="Config", menu=config_menu)
+# Display menu
+root.config(menu=menubar)
+
 # Main frame
 main_frame = tk.Frame(root, width=800, height=450)
 main_frame.pack(fill=tk.BOTH)

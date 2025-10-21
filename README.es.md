@@ -37,6 +37,8 @@ Puedes activar un contador de FPS para depurar en esta [línea](https://github.c
 
 Para su uso normal, obten `PoseGen.pyw` (solo para Windows) en los [Lanzamientos de Github](https://github.com/LuisMiSanVe/PoseGen/releases).
 
+En el menú superior, puedes guardar o cargar una pose en formato `PoseGen (.psgn)`, usar algunos ajustes del menú de controles y poner la API Key de Gemini.
+
 Desde el visor 3D puedes usar el raton para mover la camara alrededor del modelo y acercar o alejar la cámara.
 
 > [!TIP]
@@ -47,9 +49,13 @@ Desde los controles, podremos tocar algunos ajustes como cambiar la resolución,
 Dentro de dicho menú podrás añadir al fondo una imagen de referencia y generar la pose con IA usando la imagen de referencia. 
 
 ## 📂 Archivos
-Para poder iniciar el programa, deberás tener en la misma capeta que el ejecutable Python, la carpeta con el modelo 3D base `models/humanoid.urdf`.
+Para poder iniciar el programa, deberás tener en la misma capeta que el ejecutable Python, las siguientes carpetas:
+- `models/`: Debe tener el modelo 3D base `models/humanoid.urdf`.
+- `config/`: Dene tener el archivo de configuración de la clave de la API `config/apikey.env` con dicha clave dentro para usar la función de posar con IA.
+- `saves/`: Guarda en un archivo las poses guardadas, de esta manera: `saves/pose1.psgn`.
 
-Este modelo 3D pertenece a los modelos base de pyBullet y todos los créditos son a sus creadores.
+> [!NOTE]
+> El modelo 3D pertenece a los modelos base de pyBullet y todos los créditos son a sus creadores.
 
 ## 🎨 Opciones de Personalización
 En el menú de controles, puedes personalizar varios ajustes del programa con estas opciones:

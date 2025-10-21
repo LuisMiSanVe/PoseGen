@@ -37,6 +37,8 @@ You can enable a debug FPS counter in this [line](https://github.com/LuisMiSanVe
 
 For regular use, just get the `PoseGen.pyw` (only for Windows) in the [Github Releases](https://github.com/LuisMiSanVe/PoseGen/releases) page.
 
+In the upper menu, you can save or load a pose in `PoseGen` format `(.psgn)`, use some settings from the controls menu and set the Gemini API Key.
+
 On the 3D display you can use your mouse to move the camera around the model and zoom in and out.
 
 > [!TIP]
@@ -47,9 +49,13 @@ From the controls, you can setup different settings like changing stream resolut
 Inside that menu you can add a reference image on the background as reference and generate poses with AI using that image.
 
 ## 📂 Files
-To start the program, you must have downloaded on the same folder as the Python executable, the base 3D model in its folder `models/humanoid.urdf`.
+To start the program, you must have on the same folder as the Python executable this folders:
+- `models/`: It must have the base 3D model in its folder `models/humanoid.urdf`.
+- `config/`: It must have the API Key config file `config/apikey.env` with the necessary API Key inside to use the AI pose function.
+- `saves/`: It stores a file with the pose we saved, like this: `saves/pose1.psgn`.
 
-This 3D model belongs to the base pyBullet models, all credits to their respective creators.
+> [!NOTE]
+> The 3D model belongs to the base pyBullet models, all credits to their respective creators.
 
 ## 🎨 Customization Options
 In the controls menu, you can customize various settings of the program with this options:
