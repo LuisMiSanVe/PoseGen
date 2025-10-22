@@ -450,6 +450,8 @@ def jsonToPose(json_data):
             )
         else:
             print(f"Unknown joint index {joint}")
+    # Disable physics
+    p.changeDynamics(humanoid, -1, mass=0)
 
 def gen_ai_async():
     global ai_label
